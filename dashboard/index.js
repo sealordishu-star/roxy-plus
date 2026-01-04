@@ -287,6 +287,19 @@ module.exports = (client) => {
             }
         }
 
+        if (!musicData.isPlaying) {
+            for (const [id, guild] of client.guilds.cache) {
+                if (guild.me && guild.me.voice && guild.me.voice.channelId) {
+                    musicData.activeGuildId = id;
+                    musicData.isConnectedToVoice = true;
+                    musicData.guildName = guild.name;
+                    musicData.guildIcon = guild.iconURL ? guild.iconURL({ dynamic: true, size: 128 }) : null;
+                    if (guild.me.voice.channel) musicData.channelName = guild.me.voice.channel.name;
+                    break;
+                }
+            }
+        }
+
         res.json(musicData);
     });
 
@@ -367,6 +380,60 @@ module.exports = (client) => {
     });
 
 
+
+
+    app.get('/api/discord/guilds', (req, res) => {
+        try {
+            const guilds = client.guilds.cache.map(g => ({ id: g.id, name: g.name, icon: g.iconURL() }));
+            res.json(guilds);
+        } catch (e) { res.json([]); }
+    });
+
+    app.get('/api/discord/channels/:guildId', (req, res) => {
+        try {
+            const guild = client.guilds.cache.get(req.params.guildId);
+            if (!guild) return res.json([]);
+            const channels = guild.channels.cache
+                .filter(c => c.type === 'GUILD_VOICE' || c.type === 'GUILD_STAGE_VOICE')
+                .map(c => ({ id: c.id, name: c.name }));
+            res.json(channels);
+        } catch (e) { res.json([]); }
+    });
+
+    app.post('/api/music/join', async (req, res) => {
+        const { guildId, channelId } = req.body;
+        try {
+            const payload = { op: 4, d: { guild_id: guildId, channel_id: channelId, self_mute: false, self_deaf: false } };
+            if (client.ws && client.ws.shards) client.ws.shards.get(0).send(payload);
+            else client.ws.broadcast(payload);
+            res.json({ success: true });
+        } catch (e) { console.error(e); res.json({ success: false }); }
+    });
+
+    app.post('/api/music/leave', async (req, res) => {
+        const { guildId } = req.body;
+        try {
+            client.queueManager.delete(guildId);
+            if (client.lavalink) await client.lavalink.destroyPlayer(guildId);
+
+            const payload = { op: 4, d: { guild_id: guildId, channel_id: null } };
+            if (client.ws && client.ws.shards) client.ws.shards.get(0).send(payload);
+            else client.ws.broadcast(payload);
+
+            res.json({ success: true });
+        } catch (e) { console.error(e); res.json({ success: false }); }
+    });
+
+    app.post('/api/music/play', async (req, res) => {
+        const { guildId, query } = req.body;
+        if (!guildId || !query) return res.json({ success: false, message: 'Missing args' });
+
+        try {
+            const { playLogic } = require('../commands/play');
+            const result = await playLogic(client, guildId, query);
+            res.json(result);
+        } catch (e) { console.error(e); res.json({ success: false, message: e.message }); }
+    });
 
     app.listen(port, () => {
         console.log(`Dashboard is running on http://localhost:${port}`);

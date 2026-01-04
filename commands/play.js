@@ -15,28 +15,66 @@ function formatDuration(ms) {
     return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
+async function playLogic(client, guildId, query) {
+    const identifier = createIdentifier(query);
+    let result;
+    try {
+        result = await client.lavalink.loadTracks(identifier);
+    } catch (e) {
+        return { success: false, reason: e.message };
+    }
+
+    if (result.loadType === 'empty') return { success: false, reason: 'No results found' };
+    if (result.loadType === 'error') return { success: false, reason: result.data.message || 'Lavalink Error' };
+
+    let track;
+    if (result.loadType === 'track') track = result.data;
+    else if (result.loadType === 'playlist') track = result.data.tracks[0];
+    else if (result.loadType === 'search') track = result.data[0];
+
+    if (!track) return { success: false, reason: 'No track found' };
+
+    let queue = client.queueManager.get(guildId);
+    if (!queue) {
+        queue = client.queueManager.create(guildId);
+    }
+
+    if (queue.nowPlaying) {
+        client.queueManager.addSong(guildId, track);
+        return { success: true, type: 'queue', track };
+    } else {
+        // Assume bot is joined. Or we fail if no voiceState.
+        const voiceState = client.voiceStates[guildId];
+        if (!voiceState || !voiceState.token) {
+            return { success: false, reason: 'Bot not connected to voice' };
+        }
+
+        queue.nowPlaying = track;
+        queue.position = 0;
+        queue.lastUpdate = Date.now();
+
+        await client.lavalink.updatePlayer(guildId, track, voiceState, {
+            volume: queue.volume,
+            filters: queue.filters
+        });
+
+        return { success: true, type: 'play', track };
+    }
+}
+
 module.exports = {
     name: 'play',
     description: 'Play a song from YouTube or search query',
+    playLogic,
     async execute(message, args, client) {
-        if (!message.guild) {
-            await message.channel.send('```This command only works in servers```');
-            return;
-        }
+        if (!message.guild) return message.channel.send('```This command only works in servers```');
 
         const vc = message.member?.voice?.channel;
-        if (!vc) {
-            await message.channel.send('```You need to be in a voice channel```');
-            return;
-        }
-
-        if (!args.length) {
-            await message.channel.send('```Please provide a song name or URL```');
-            return;
-        }
+        if (!vc) return message.channel.send('```You need to be in a voice channel```');
+        if (!args.length) return message.channel.send('```Please provide a song name or URL```');
 
         try {
-            // Join voice channel
+            // Join Voice
             joinVoiceChannel({
                 channelId: vc.id,
                 guildId: vc.guild.id,
@@ -44,80 +82,42 @@ module.exports = {
                 selfDeaf: false,
             });
 
-            // Wait for voice state updates
             await new Promise(resolve => setTimeout(resolve, 1000));
 
-            const voiceState = client.voiceStates[message.guild.id];
-            if (!voiceState?.token || !voiceState?.sessionId || !voiceState?.endpoint) {
-                await message.channel.send('```Failed to connect to voice channel```');
-                return;
+            // Use shared logic
+            const result = await playLogic(client, message.guild.id, args.join(' '));
+
+            if (!result.success) {
+                return message.channel.send(`\`\`\`Error: ${result.reason}\`\`\``);
             }
 
-            const identifier = createIdentifier(args.join(' '));
-            const result = await client.lavalink.loadTracks(identifier);
-
-            if (result.loadType === 'empty') {
-                await message.channel.send('```No results found```');
-                return;
-            }
-
-            if (result.loadType === 'error') {
-                await message.channel.send(`\`\`\`js\n❌ Error: ${result.data.message}\n\`\`\``);
-                return;
-            }
-
-            let track;
-            if (result.loadType === 'track') track = result.data;
-            else if (result.loadType === 'playlist') track = result.data.tracks[0];
-            else if (result.loadType === 'search') track = result.data[0];
-
-            if (!track) {
-                await message.channel.send('```No track found```');
-                return;
-            }
-
-            let queue = client.queueManager.get(message.guild.id);
-            if (!queue) {
-                queue = client.queueManager.create(message.guild.id);
-                queue.textChannel = message.channel;
-            }
-
-            if (queue.nowPlaying) {
-                client.queueManager.addSong(message.guild.id, track);
-
+            if (result.type === 'queue') {
                 let response = '```\n';
                 response += '╭─[ ADDED TO QUEUE ]─╮\n\n';
-                response += `  Title: ${track.info.title}\n`;
-                response += `  Artist: ${track.info.author}\n`;
-                response += `  Position: ${queue.songs.length}\n`;
+                response += `  Title: ${result.track.info.title}\n`;
+                response += `  Artist: ${result.track.info.author}\n`;
+                response += `  Position: ${client.queueManager.get(message.guild.id).songs.length}\n`;
                 response += '\n╰──────────────────────────────────╯\n```';
-
-                await message.channel.send(response);
+                message.channel.send(response);
             } else {
-                queue.nowPlaying = track;
-                await client.lavalink.updatePlayer(
-                    message.guild.id,
-                    track,
-                    voiceState,
-                    { volume: queue.volume, filters: queue.filters }
-                );
-
                 let response = '```\n';
                 response += '╭─[ NOW PLAYING ]─╮\n\n';
-                response += `  🎵 ${track.info.title}\n`;
-                response += `  👤 ${track.info.author}\n`;
-                response += `  ⏱️ ${formatDuration(track.info.length)}\n`;
+                response += `  🎵 ${result.track.info.title}\n`;
+                response += `  👤 ${result.track.info.author}\n`;
+                response += `  ⏱️ ${formatDuration(result.track.info.length)}\n`;
                 response += '\n╰──────────────────────────────────╯\n```';
+                message.channel.send(response);
 
-                await message.channel.send(response);
+                // Set text channel for queue if new
+                const queue = client.queueManager.get(message.guild.id);
+                if (queue) queue.textChannel = message.channel;
             }
 
-            if (message.deletable) {
-                await message.delete().catch(() => { });
-            }
+            if (message.deletable) message.delete().catch(() => { });
+
         } catch (err) {
             console.error('[Play Error]:', err);
-            await message.channel.send(`\`\`\`js\n❌ Error: ${err.message}\n\`\`\``);
+            message.channel.send(`\`\`\`js\n❌ Error: ${err.message}\n\`\`\``);
         }
     },
 };
