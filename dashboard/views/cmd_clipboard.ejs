@@ -217,7 +217,9 @@
                 </div>
                 <div class="input-group">
                     <label class="input-label">Response</label>
-                    <input type="text" id="newResponse" class="input-field" placeholder="e.g. User says hi!">
+                    <textarea id="newResponse" class="input-field"
+                        placeholder="e.g. User says hi! (Multi-line supported)"
+                        style="resize: vertical; min-height: 100px; font-family: inherit;"></textarea>
                 </div>
             </div>
             <button class="btn-add" onclick="addPair()">Add to Clipboard</button>
