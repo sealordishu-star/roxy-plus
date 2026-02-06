@@ -62,7 +62,6 @@ async function setPresence(client, data) {
             // Timestamp Logic
             const startTimeVal = parseInt(data.startTimestamp);
             if (startTimeVal && startTimeVal > 0) {
-                // data.startTimestamp is user input (e.g., number of ms to show passed)
                 rpcActivity.timestamps = { start: Date.now() - startTimeVal };
             }
 
