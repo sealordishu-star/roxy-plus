@@ -28,14 +28,21 @@ module.exports = {
                 volume: vol
             });
 
-            const filled = Math.min(20, Math.floor(vol / 10));
-            const empty = Math.max(0, 20 - filled);
-            const volumeBar = '█'.repeat(filled) + '░'.repeat(empty);
+            // Professional volume bar (accurate for 0-1000)
+            const totalBars = 20;
+            const progress = Math.round((vol / 1000) * totalBars);
+            const empty = totalBars - progress;
+
+            const volumeBar = '▰'.repeat(progress) + '▱'.repeat(empty);
 
             let response = '```js\n';
-            response += ` Volume: ${vol}%\n`;
-            response += ` [${volumeBar}]\n`;
-            response += '╰──────────────────────────────────╯\n```';
+            response += `╭─── 🔊 Volume Control ───╮\n`;
+            response += `│\n`;
+            response += `│  ${volumeBar}\n`;
+            response += `│  ${vol}%\n`;
+            response += `│\n`;
+            response += `╰─────────────────────────╯\n`;
+            response += '```';
 
             await message.channel.send(response);
 
