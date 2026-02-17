@@ -573,6 +573,35 @@ module.exports = (client) => {
         }
     });
 
+    // --- Timed Msg Routes ---
+    app.get('/commands/timed-msg', (req, res) => {
+        res.render('cmd_timed_msg', { user: client.user, page: 'commands' });
+    });
+
+    app.get('/api/timed-msg', (req, res) => {
+        const timedMsg = require('../commands/timedMsg');
+        res.json(timedMsg.getList());
+    });
+
+    app.post('/api/timed-msg', async (req, res) => {
+        const timedMsg = require('../commands/timedMsg');
+        const { action, id, channelId, message, timestamp, timezone } = req.body;
+
+        try {
+            if (action === 'add') {
+                const item = timedMsg.addTimedMsg(client, channelId, message, timestamp, timezone);
+                res.json({ success: true, item });
+            } else if (action === 'remove') {
+                timedMsg.removeTimedMsg(id);
+                res.json({ success: true });
+            } else {
+                res.status(400).json({ error: 'Invalid action' });
+            }
+        } catch (e) {
+            res.status(400).json({ error: e.message });
+        }
+    });
+
     app.get('/api/clipboard', (req, res) => {
         const clipboardManager = require('../commands/clipboardManager');
         res.json(clipboardManager.loadData());
@@ -740,6 +769,7 @@ module.exports = (client) => {
             nowPlaying: null,
             position: 0,
             duration: 0,
+            volume: 100,
             queue: [],
             queueCount: 0
         };
@@ -751,9 +781,11 @@ module.exports = (client) => {
                 const voiceState = client.voiceStates ? client.voiceStates[guildId] : null; // Custom voiceStates storage
                 // OR check client.guilds.cache.get(guildId).me.voice.channel
 
+                musicData.activeGuildId = guildId;
                 musicData.isPlaying = true;
                 musicData.guildName = guild ? guild.name : `Guild ${guildId}`;
                 musicData.guildIcon = guild ? guild.iconURL({ dynamic: true, size: 128 }) : null;
+                musicData.volume = queue.volume !== undefined ? queue.volume : 100;
 
                 // Try to find channel name
                 // queue doesn't store channelId? Lavalink might. 
@@ -889,6 +921,25 @@ module.exports = (client) => {
             }
             res.json({ success: false, message: 'No previous song' });
         } catch (e) { console.error(e); res.json({ success: false }); }
+    });
+
+    app.post('/api/music/volume', async (req, res) => {
+        const { guildId, volume } = req.body;
+        try {
+            const queue = client.queueManager ? client.queueManager.get(guildId) : null;
+            if (queue && client.lavalink) {
+                const vol = parseInt(volume);
+                if (!isNaN(vol) && vol >= 0 && vol <= 200) {
+                    queue.volume = vol;
+                    await client.lavalink.updatePlayerProperties(guildId, { volume: vol });
+                    return res.json({ success: true, volume: vol });
+                }
+            }
+            res.json({ success: false, message: 'No active player or invalid volume' });
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ success: false, error: e.message });
+        }
     });
 
 
