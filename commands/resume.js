@@ -1,6 +1,7 @@
 module.exports = {
     name: 'resume',
     aliases: ['rs'],
+    category: 'Music',
     description: 'Resume the paused song',
     async execute(message, args, client) {
         if (!message.guild)
