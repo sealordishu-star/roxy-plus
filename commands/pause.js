@@ -1,6 +1,7 @@
 module.exports = {
     name: 'pause',
     aliases: ['ps'],
+    category: 'Music',
     description: 'Pause the currently playing song',
     async execute(message, args, client) {
         if (!message.guild) 
