@@ -419,3 +419,13 @@ client.login(process.env.TOKEN).catch(error => {
     console.error('Failed to login:', error.message);
     process.exit(1);
 });
+const express = require("express");
+const app = express();
+
+app.get("/", (req, res) => {
+  res.send("Bot is alive!");
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Web server started");
+});
