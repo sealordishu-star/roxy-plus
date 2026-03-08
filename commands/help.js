@@ -12,8 +12,8 @@ module.exports = {
             // Auto-assign Music category for known commands if property missing
             if (['play', 'stop', 'skip', 'queue', 'join', 'left', 'tts', 'volume', 'seek', 'autoplay', 'fav'].includes(cmd.name)) cat = 'Music';
 
-            // Ensure Purge/DM are Utility (though set in file)
-            if (['purge', 'dm'].includes(cmd.name)) cat = 'Utility';
+            // Ensure Purge/DM/Say are Utility (though set in file)
+            if (['purge', 'dm', 'say'].includes(cmd.name)) cat = 'Utility';
 
             if (!categories[cat]) categories[cat] = [];
             categories[cat].push(cmd);
