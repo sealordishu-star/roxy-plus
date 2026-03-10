@@ -322,7 +322,8 @@
                 <div class="form-grid">
                     <div class="input-group full-width">
                         <label class="input-label">Username Font Color</label>
-                        <select id="wTextColor" class="input-field">
+                        <select id="wTextColor" class="input-field"
+                            onchange="localStorage.setItem('welcomerTextColor', this.value)">
                             <option value="white">White</option>
                             <option value="black">Black</option>
                             <option value="red">Red</option>
@@ -497,6 +498,10 @@
             }
 
             window.onload = () => {
+                const savedColor = localStorage.getItem('welcomerTextColor');
+                if (savedColor) {
+                    document.getElementById('wTextColor').value = savedColor;
+                }
                 loadData();
             };
         </script>
