@@ -759,21 +759,38 @@ module.exports = (client) => {
                 channelName: channelName,
                 template: val.template,
                 background: val.background,
-                textcolor: val.textcolor
+                textcolor: val.textcolor,
+                welcomeType: val.welcomeType || 'card',
+                textMessage: val.textMessage || 'hey {user} welcome to the {server} you are {count} member',
+                cardMessage: val.cardMessage || 'WELCOME TO {server}\n{user}\nMember #{count}'
             });
         }
-        res.json({ setups: enrichedList });
+        const config = data.config || { textcolor: 'white', welcomeType: 'card', textMessage: 'hey {user} welcome to the {server} you are {count} member', cardMessage: 'WELCOME TO {server}\n{user}\nMember #{count}' };
+        res.json({ setups: enrichedList, config });
     });
 
     app.post('/api/welcomer', (req, res) => {
         const welcomerManager = require('../commands/welcomerManager');
-        const { action, guildId, channelId, template, background, textcolor } = req.body;
+        const { action, guildId, channelId, template, background, textcolor, welcomeType, textMessage, cardMessage } = req.body;
 
         try {
             if (action === 'add') {
-                welcomerManager.addSetup(guildId, channelId, template, background, textcolor);
+                welcomerManager.addSetup(guildId, channelId, template, background, textcolor, welcomeType, textMessage, cardMessage);
             } else if (action === 'remove') {
                 welcomerManager.removeSetup(guildId);
+            } else if (action === 'saveConfig') {
+                const data = welcomerManager.loadData();
+                data.config = { textcolor, welcomeType, textMessage, cardMessage };
+                
+                // Update all existing setups automatically
+                if (!data.welcomeSetups) data.welcomeSetups = {};
+                for (let gid of Object.keys(data.welcomeSetups)) {
+                    data.welcomeSetups[gid].textcolor = textcolor;
+                    data.welcomeSetups[gid].welcomeType = welcomeType;
+                    data.welcomeSetups[gid].textMessage = textMessage;
+                    data.welcomeSetups[gid].cardMessage = cardMessage;
+                }
+                welcomerManager.saveData(data);
             }
             res.json({ success: true });
         } catch (e) {
